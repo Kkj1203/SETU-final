@@ -35,8 +35,8 @@ http://127.0.0.1:5000
 
 ## Demo (Two Browsers Simultaneously)
 
-- Open First Responder dashboard in **Chrome**
-- Open Hospital Staff dashboard in **Firefox**
+- Open First Responder dashboard in **Normal browser window/tab**
+- Open Hospital Staff dashboard in **Incognito**
 - Both sessions run independently — demo the full ping/accept flow side by side
 
 ## Roles
