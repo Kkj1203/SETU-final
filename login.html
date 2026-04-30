@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Login</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body {
+      min-height:100vh; background:#f0f4f8;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'Segoe UI',sans-serif;
+    }
+    .card { border:none; border-radius:16px; box-shadow:0 4px 32px rgba(0,0,0,.10); padding:40px; width:100%; max-width:420px; }
+    .back { font-size:.88rem; color:#555; text-decoration:none; display:inline-block; margin-bottom:20px; }
+    .back:hover { color:#000; }
+    h2 { font-weight:800; margin-bottom:6px; }
+    .role-pill {
+      display:inline-block; padding:4px 14px; border-radius:20px;
+      font-size:.8rem; font-weight:600; margin-bottom:24px; text-transform:uppercase; letter-spacing:.5px;
+    }
+    .pill-patient       { background:#e0f2fe; color:#0284c7; }
+    .pill-first_responder{ background:#fef3c7; color:#d97706; }
+    .pill-hospital_staff { background:#dcfce7; color:#16a34a; }
+    .pill-admin          { background:#ede9fe; color:#7c3aed; }
+
+    .btn-submit { width:100%; padding:11px; border:none; border-radius:8px; font-size:1rem; font-weight:600; color:#fff; cursor:pointer; }
+    .btn-patient       { background:#0284c7; }
+    .btn-first_responder{ background:#d97706; }
+    .btn-hospital_staff { background:#16a34a; }
+    .btn-admin          { background:#7c3aed; }
+
+    #errorMsg { display:none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <a class="back" href="/">← Back to home</a>
+  <h2>Welcome back</h2>
+  <div id="rolePill" class="role-pill"></div>
+
+  <div class="mb-3">
+    <label class="form-label">Email</label>
+    <input id="email" type="email" class="form-control" placeholder="you@example.com">
+  </div>
+  <div class="mb-4">
+    <label class="form-label">Password</label>
+    <input id="password" type="password" class="form-control" placeholder="••••••••">
+  </div>
+
+  <button id="loginBtn" class="btn-submit" onclick="doLogin()">Login</button>
+
+  <div id="errorMsg" class="alert alert-danger mt-3 mb-0"></div>
+
+  <p class="text-center mt-3 mb-0" style="font-size:.88rem;">
+    <span id="signupLink"></span>
+  </p>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const role   = params.get('role') || 'patient';
+
+const labels = {
+  patient:         'Patient',
+  first_responder: 'First Responder',
+  hospital_staff:  'Hospital Staff',
+  admin:           'Admin',
+};
+
+const pill = document.getElementById('rolePill');
+pill.className = `role-pill pill-${role}`;
+pill.innerText = labels[role] || role;
+
+const btn = document.getElementById('loginBtn');
+btn.className = `btn-submit btn-${role}`;
+
+// Show signup link for patient only
+const sl = document.getElementById('signupLink');
+if(role === 'patient'){
+  sl.innerHTML = `Don't have an account? <a href="/signup?role=patient">Sign up</a>`;
+} else if(role === 'admin'){
+  sl.innerHTML = `First time? <a href="/signup?role=admin">Create admin account</a>`;
+}
+
+async function doLogin(){
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl    = document.getElementById('errorMsg');
+  errEl.style.display = 'none';
+
+  if(!email || !password){ showErr('Please fill in all fields.'); return; }
+
+  btn.disabled = true; btn.innerText = 'Logging in…';
+
+  try {
+    const res  = await fetch('/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password, role })
+    });
+    const data = await res.json();
+
+    if(!res.ok){ showErr(data.error || 'Login failed'); return; }
+
+    window.location.href = `/dashboard/${data.role}`;
+
+  } catch(e){
+    showErr('Could not reach server.');
+  } finally {
+    btn.disabled = false; btn.innerText = 'Login';
+  }
+}
+
+function showErr(msg){
+  const e = document.getElementById('errorMsg');
+  e.style.display = 'block';
+  e.innerText = msg;
+}
+
+// Enter key support
+document.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Admin Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; }
+    .topbar {
+      background:#fff; border-bottom:1px solid #e5e7eb;
+      padding:14px 32px; display:flex; align-items:center; justify-content:space-between;
+    }
+    .topbar h5 { margin:0; font-weight:700; color:#7c3aed; }
+    .content { padding:36px 32px; max-width:1100px; margin:0 auto; }
+    h2 { font-weight:700; margin-bottom:4px; }
+    .sub { color:#666; margin-bottom:32px; font-size:.95rem; }
+
+    .grid2 { display:grid; grid-template-columns:380px 1fr; gap:28px; }
+    @media(max-width:900px){ .grid2{ grid-template-columns:1fr; } }
+
+    .card { border:none; border-radius:14px; box-shadow:0 2px 16px rgba(0,0,0,.07); margin-bottom:28px; }
+    .card-header-custom { padding:18px 24px 14px; border-bottom:1px solid #f1f1f1; }
+    .card-header-custom h5 { font-weight:700; margin:0; }
+    .card-body { padding:24px; }
+
+    /* Admin info */
+    .admin-avatar {
+      width:72px; height:72px; background:#ede9fe; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:2rem; margin-bottom:16px;
+    }
+    .info-row { margin-bottom:10px; }
+    .info-label { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#888; font-weight:600; }
+    .info-value { font-size:1rem; color:#1a202c; font-weight:500; }
+
+    /* Create user form */
+    .btn-create { background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:10px 0; width:100%; font-size:.95rem; font-weight:600; cursor:pointer; margin-top:8px; }
+    .btn-create:hover { background:#6d28d9; }
+
+    /* Users table */
+    .role-badge {
+      display:inline-block; padding:3px 10px; border-radius:12px; font-size:.75rem; font-weight:600;
+    }
+    .role-patient         { background:#e0f2fe; color:#0284c7; }
+    .role-first_responder { background:#fef3c7; color:#d97706; }
+    .role-hospital_staff  { background:#dcfce7; color:#16a34a; }
+    .role-admin           { background:#ede9fe; color:#7c3aed; }
+
+    #createError, #createSuccess { display:none; margin-top:10px; }
+    #toast { display:none; position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#16a34a; color:#fff; padding:12px 28px; border-radius:10px; z-index:999; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h5>🚑 SETU — Admin</h5>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="topName" style="font-size:.93rem;color:#555;"></span>
+    <button onclick="logout()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 16px;font-size:.88rem;cursor:pointer;">Logout</button>
+  </div>
+</div>
+
+<div class="content">
+  <h2>Admin Dashboard</h2>
+  <p class="sub">Manage users and system accounts.</p>
+
+  <div class="grid2">
+
+    <!-- Left: Admin Info + Create User -->
+    <div>
+      <!-- Admin Info -->
+      <div class="card">
+        <div class="card-header-custom"><h5>Admin Profile</h5></div>
+        <div class="card-body">
+          <div class="admin-avatar">🛡️</div>
+          <div class="info-row">
+            <div class="info-label">Name</div>
+            <div class="info-value" id="adminName">—</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Email</div>
+            <div class="info-value" id="adminEmail">—</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Role</div>
+            <div><span class="role-badge role-admin">Admin</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create User -->
+      <div class="card">
+        <div class="card-header-custom"><h5>Create Staff Account</h5></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Role</label>
+            <select id="newRole" class="form-select" onchange="onRoleChange()">
+              <option value="hospital_staff">Hospital Staff</option>
+              <option value="first_responder">First Responder</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" id="linkedLabel">Assign to Hospital</label>
+            <select id="linkedId" class="form-select"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Full Name</label>
+            <input id="newName" type="text" class="form-control" placeholder="Staff member name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input id="newEmail" type="email" class="form-control" placeholder="staff@hospital.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Temporary Password</label>
+            <input id="newPassword" type="password" class="form-control" placeholder="Min 6 characters">
+          </div>
+          <button class="btn-create" onclick="createUser()">Create Account</button>
+          <div id="createError"   class="alert alert-danger  p-2"></div>
+          <div id="createSuccess" class="alert alert-success p-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: All Users Table -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header-custom" style="display:flex;align-items:center;justify-content:space-between;">
+        <h5>All Users</h5>
+        <button onclick="loadUsers()" style="background:#f1f5f9;border:none;border-radius:8px;padding:5px 14px;font-size:.82rem;cursor:pointer;">↻ Refresh</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="table table-hover mb-0" id="usersTable">
+          <thead style="background:#fafafa;">
+            <tr>
+              <th style="padding:14px 20px;">Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Linked To</th>
+              <th>Since</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody">
+            <tr><td colspan="5" class="text-center text-muted p-4">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let hospitals  = [];
+let ambulances = [];
+
+async function load(){
+  const me = await fetch('/auth/me').then(r=>r.json());
+  if(!me.authenticated || me.role !== 'admin'){
+    window.location.href='/'; return;
+  }
+  document.getElementById('topName').innerText  = me.name;
+  document.getElementById('adminName').innerText  = me.name;
+  document.getElementById('adminEmail').innerText = me.email;
+
+  // Load hospitals and ambulances for dropdown
+  const [hRes, aRes] = await Promise.all([
+    fetch('/hospitals').then(r=>r.json()),
+    fetch('/ambulances_list').then(r=>r.json()).catch(()=>[])
+  ]);
+  hospitals  = hRes;
+  ambulances = aRes;
+
+  populateLinkedDropdown();
+  loadUsers();
+}
+
+function onRoleChange(){
+  populateLinkedDropdown();
+  document.getElementById('linkedLabel').innerText =
+    document.getElementById('newRole').value === 'hospital_staff'
+      ? 'Assign to Hospital' : 'Assign to Ambulance';
+}
+
+function populateLinkedDropdown(){
+  const role = document.getElementById('newRole').value;
+  const sel  = document.getElementById('linkedId');
+  sel.innerHTML = '';
+  const items = role === 'hospital_staff' ? hospitals : ambulances;
+  items.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value    = item.hosp_id || item.amb_id;
+    opt.innerText = item.name || `${item.amb_id} (${item.vehicle_no})`;
+    sel.appendChild(opt);
+  });
+}
+
+async function loadUsers(){
+  const res  = await fetch('/admin/users');
+  const rows = await res.json();
+  const tbody = document.getElementById('usersTbody');
+  tbody.innerHTML = '';
+
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted p-4">No users yet</td></tr>';
+    return;
+  }
+  rows.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:12px 20px;font-weight:600;">${u.name}</td>
+      <td style="color:#555;">${u.email}</td>
+      <td><span class="role-badge role-${u.role}">${u.role.replace('_',' ')}</span></td>
+      <td style="color:#888;font-size:.88rem;">${u.linked_id || '—'}</td>
+      <td style="color:#aaa;font-size:.82rem;">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function createUser(){
+  const errEl = document.getElementById('createError');
+  const sucEl = document.getElementById('createSuccess');
+  errEl.style.display = 'none'; sucEl.style.display = 'none';
+
+  const payload = {
+    role:       document.getElementById('newRole').value,
+    linked_id:  document.getElementById('linkedId').value,
+    name:       document.getElementById('newName').value.trim(),
+    email:      document.getElementById('newEmail').value.trim().toLowerCase(),
+    password:   document.getElementById('newPassword').value,
+  };
+
+  if(!payload.name || !payload.email || !payload.password){
+    errEl.style.display='block'; errEl.innerText='All fields are required.'; return;
+  }
+  if(payload.password.length < 6){
+    errEl.style.display='block'; errEl.innerText='Password must be at least 6 characters.'; return;
+  }
+
+  const res  = await fetch('/admin/create-user', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  if(!res.ok){
+    errEl.style.display='block'; errEl.innerText = data.error || 'Failed to create user.'; return;
+  }
+
+  sucEl.style.display='block';
+  sucEl.innerText = `✅ Account created for ${payload.name}`;
+  document.getElementById('newName').value     = '';
+  document.getElementById('newEmail').value    = '';
+  document.getElementById('newPassword').value = '';
+  loadUsers();
+}
+
+async function logout(){
+  await fetch('/auth/logout',{method:'POST'});
+  window.location.href='/';
+}
+
+load();
+</script>
+</body>
+</html>

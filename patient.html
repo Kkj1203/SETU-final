@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Patient Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; }
+    .topbar {
+      background:#fff; border-bottom:1px solid #e5e7eb;
+      padding:14px 32px; display:flex; align-items:center; justify-content:space-between;
+    }
+    .topbar h5 { margin:0; font-weight:700; color:#0284c7; }
+    .content { padding:36px 32px; max-width:960px; margin:0 auto; }
+    h2 { font-weight:700; margin-bottom:4px; }
+    .sub { color:#666; margin-bottom:32px; font-size:.95rem; }
+
+    .card { border:none; border-radius:14px; box-shadow:0 2px 16px rgba(0,0,0,.07); margin-bottom:28px; }
+    .card-header-custom {
+      padding:18px 24px 0; border-bottom:1px solid #f1f1f1; margin-bottom:0;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .card-header-custom h5 { font-weight:700; margin:0; padding-bottom:14px; }
+    .card-body { padding:24px; }
+
+    .field-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media(max-width:600px){ .field-row{ grid-template-columns:1fr; } }
+
+    .field-label { font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#888; margin-bottom:4px; }
+    .field-value { font-size:1rem; color:#1a202c; font-weight:500; min-height:24px; }
+
+    .edit-mode input, .edit-mode select, .edit-mode textarea {
+      width:100%; border:1.5px solid #d1d5db; border-radius:8px;
+      padding:8px 12px; font-size:.95rem; outline:none;
+    }
+    .edit-mode input:focus, .edit-mode select:focus { border-color:#0284c7; }
+
+    .btn-edit   { background:#0284c7; color:#fff; border:none; border-radius:8px; padding:7px 20px; font-size:.88rem; cursor:pointer; }
+    .btn-save   { background:#16a34a; color:#fff; border:none; border-radius:8px; padding:7px 20px; font-size:.88rem; cursor:pointer; margin-right:8px; }
+    .btn-cancel { background:#e5e7eb; color:#333; border:none; border-radius:8px; padding:7px 20px; font-size:.88rem; cursor:pointer; }
+    #toast { display:none; position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#16a34a; color:#fff; padding:12px 28px; border-radius:10px; font-size:.93rem; z-index:999; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h5>🚑 SETU</h5>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="topName" style="font-size:.93rem;color:#555;"></span>
+    <button onclick="logout()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 16px;font-size:.88rem;cursor:pointer;">Logout</button>
+  </div>
+</div>
+
+<div class="content">
+  <h2 id="pageTitle">My Profile</h2>
+  <p class="sub" id="pagePatientId"></p>
+
+  <!-- Personal Information Card -->
+  <div class="card">
+    <div class="card-header-custom">
+      <h5>Personal Information</h5>
+      <div id="personalActions">
+        <button class="btn-edit" onclick="editSection('personal')">Edit</button>
+      </div>
+    </div>
+    <div class="card-body" id="personalSection">
+      <div class="field-row">
+        <div><div class="field-label">Full Name</div><div class="field-value" id="v_name"></div></div>
+        <div><div class="field-label">Email</div><div class="field-value" id="v_email"></div></div>
+        <div><div class="field-label">Date of Birth</div><div class="field-value" id="v_dob"></div></div>
+        <div><div class="field-label">Gender</div><div class="field-value" id="v_gender"></div></div>
+        <div><div class="field-label">Blood Group</div><div class="field-value" id="v_blood_group"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Medical History Card -->
+  <div class="card">
+    <div class="card-header-custom">
+      <h5>Medical History</h5>
+      <div id="medicalActions">
+        <button class="btn-edit" onclick="editSection('medical')">Edit</button>
+      </div>
+    </div>
+    <div class="card-body" id="medicalSection">
+      <div class="field-row">
+        <div><div class="field-label">Known Allergies</div><div class="field-value" id="v_allergies"></div></div>
+        <div><div class="field-label">Existing Conditions</div><div class="field-value" id="v_conditions"></div></div>
+        <div><div class="field-label">Current Medications</div><div class="field-value" id="v_medications"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let profile = {};
+
+async function load(){
+  // Check session
+  const me = await fetch('/auth/me').then(r=>r.json());
+  if(!me.authenticated || me.role !== 'patient'){
+    window.location.href = '/'; return;
+  }
+  document.getElementById('topName').innerText = me.name;
+
+  const res = await fetch('/patient/profile');
+  if(!res.ok){ window.location.href='/'; return; }
+  profile = await res.json();
+
+  document.getElementById('pageTitle').innerText   = `Welcome, ${profile.name}`;
+  document.getElementById('pagePatientId').innerText = `Patient ID: ${profile.patient_id} · Member since ${profile.created_at ? profile.created_at.slice(0,10) : '—'}`;
+
+  renderView();
+}
+
+function renderView(){
+  document.getElementById('v_name').innerText        = profile.name        || '—';
+  document.getElementById('v_email').innerText       = profile.email       || '—';
+  document.getElementById('v_dob').innerText         = profile.dob         || '—';
+  document.getElementById('v_gender').innerText      = profile.gender      || '—';
+  document.getElementById('v_blood_group').innerText = profile.blood_group || '—';
+  document.getElementById('v_allergies').innerText   = profile.allergies   || '—';
+  document.getElementById('v_conditions').innerText  = profile.conditions  || '—';
+  document.getElementById('v_medications').innerText = profile.medications || '—';
+}
+
+function editSection(section){
+  if(section === 'personal'){
+    document.getElementById('personalSection').innerHTML = `
+      <div class="edit-mode">
+        <div class="field-row">
+          <div>
+            <div class="field-label">Full Name</div>
+            <input id="e_name" value="${esc(profile.name)}">
+          </div>
+          <div>
+            <div class="field-label">Email</div>
+            <div class="field-value">${esc(profile.email)} <small style="color:#aaa">(cannot change)</small></div>
+          </div>
+          <div>
+            <div class="field-label">Date of Birth</div>
+            <input id="e_dob" type="date" value="${esc(profile.dob)}">
+          </div>
+          <div>
+            <div class="field-label">Gender</div>
+            <select id="e_gender">
+              <option ${profile.gender==='Male'?'selected':''}>Male</option>
+              <option ${profile.gender==='Female'?'selected':''}>Female</option>
+              <option ${profile.gender==='Other'?'selected':''}>Other</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label">Blood Group</div>
+            <select id="e_blood_group">
+              ${['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg=>`<option ${profile.blood_group===bg?'selected':''}>${bg}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('personalActions').innerHTML =
+      `<button class="btn-save" onclick="saveSection('personal')">Save</button>
+       <button class="btn-cancel" onclick="cancelEdit('personal')">Cancel</button>`;
+
+  } else if(section === 'medical'){
+    document.getElementById('medicalSection').innerHTML = `
+      <div class="edit-mode">
+        <div class="field-row">
+          <div>
+            <div class="field-label">Known Allergies</div>
+            <input id="e_allergies" value="${esc(profile.allergies)}">
+          </div>
+          <div>
+            <div class="field-label">Existing Conditions</div>
+            <input id="e_conditions" value="${esc(profile.conditions)}">
+          </div>
+          <div>
+            <div class="field-label">Current Medications</div>
+            <input id="e_medications" value="${esc(profile.medications)}">
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('medicalActions').innerHTML =
+      `<button class="btn-save" onclick="saveSection('medical')">Save</button>
+       <button class="btn-cancel" onclick="cancelEdit('medical')">Cancel</button>`;
+  }
+}
+
+async function saveSection(section){
+  let updates = { ...profile };
+
+  if(section === 'personal'){
+    updates.name        = document.getElementById('e_name').value.trim();
+    updates.dob         = document.getElementById('e_dob').value;
+    updates.gender      = document.getElementById('e_gender').value;
+    updates.blood_group = document.getElementById('e_blood_group').value;
+  } else {
+    updates.allergies   = document.getElementById('e_allergies').value.trim() || 'None';
+    updates.conditions  = document.getElementById('e_conditions').value.trim() || 'None';
+    updates.medications = document.getElementById('e_medications').value.trim() || 'None';
+  }
+
+  const res = await fetch('/patient/profile', {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(updates)
+  });
+
+  if(res.ok){
+    profile = { ...profile, ...updates };
+    renderView();
+    resetActions(section);
+    showToast('✅ Changes saved successfully');
+  } else {
+    showToast('❌ Failed to save. Try again.');
+  }
+}
+
+function cancelEdit(section){
+  renderView();
+  resetActions(section);
+}
+
+function resetActions(section){
+  if(section === 'personal'){
+    document.getElementById('personalSection').innerHTML = `
+      <div class="field-row">
+        <div><div class="field-label">Full Name</div><div class="field-value" id="v_name">${esc(profile.name)}</div></div>
+        <div><div class="field-label">Email</div><div class="field-value" id="v_email">${esc(profile.email)}</div></div>
+        <div><div class="field-label">Date of Birth</div><div class="field-value" id="v_dob">${esc(profile.dob)}</div></div>
+        <div><div class="field-label">Gender</div><div class="field-value" id="v_gender">${esc(profile.gender)}</div></div>
+        <div><div class="field-label">Blood Group</div><div class="field-value" id="v_blood_group">${esc(profile.blood_group)}</div></div>
+      </div>`;
+    document.getElementById('personalActions').innerHTML = `<button class="btn-edit" onclick="editSection('personal')">Edit</button>`;
+  } else {
+    document.getElementById('medicalSection').innerHTML = `
+      <div class="field-row">
+        <div><div class="field-label">Known Allergies</div><div class="field-value" id="v_allergies">${esc(profile.allergies)}</div></div>
+        <div><div class="field-label">Existing Conditions</div><div class="field-value" id="v_conditions">${esc(profile.conditions)}</div></div>
+        <div><div class="field-label">Current Medications</div><div class="field-value" id="v_medications">${esc(profile.medications)}</div></div>
+      </div>`;
+    document.getElementById('medicalActions').innerHTML = `<button class="btn-edit" onclick="editSection('medical')">Edit</button>`;
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.innerText = msg; t.style.display = 'block';
+  setTimeout(()=>{ t.style.display='none'; }, 3000);
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function logout(){
+  await fetch('/auth/logout', {method:'POST'});
+  window.location.href = '/';
+}
+
+load();
+</script>
+</body>
+</html>

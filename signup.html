@@ -1,0 +1,198 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Sign Up</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body {
+      min-height:100vh; background:#f0f4f8;
+      display:flex; align-items:center; justify-content:center;
+      font-family:'Segoe UI',sans-serif; padding:40px 20px;
+    }
+    .card { border:none; border-radius:16px; box-shadow:0 4px 32px rgba(0,0,0,.10); padding:40px; width:100%; max-width:480px; }
+    .back { font-size:.88rem; color:#555; text-decoration:none; display:inline-block; margin-bottom:20px; }
+    h2 { font-weight:800; margin-bottom:6px; }
+    .role-pill {
+      display:inline-block; padding:4px 14px; border-radius:20px;
+      font-size:.8rem; font-weight:600; margin-bottom:24px; text-transform:uppercase; letter-spacing:.5px;
+    }
+    .pill-patient { background:#e0f2fe; color:#0284c7; }
+    .pill-admin   { background:#ede9fe; color:#7c3aed; }
+
+    .btn-submit { width:100%; padding:11px; border:none; border-radius:8px; font-size:1rem; font-weight:600; color:#fff; cursor:pointer; }
+    .btn-patient { background:#0284c7; }
+    .btn-admin   { background:#7c3aed; }
+
+    .section-divider { font-size:.78rem; text-transform:uppercase; letter-spacing:.8px; color:#999; margin:20px 0 12px; font-weight:600; }
+    #errorMsg, #successMsg { display:none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <a class="back" href="/">← Back to home</a>
+  <h2>Create Account</h2>
+  <div id="rolePill" class="role-pill"></div>
+
+  <!-- ADMIN: bootstrap key -->
+  <div id="bootstrapSection" style="display:none;" class="mb-3">
+    <label class="form-label">Admin Bootstrap Key <span class="text-danger">*</span></label>
+    <input id="bootstrapKey" type="password" class="form-control" placeholder="Enter the system bootstrap key">
+    <div class="form-text">This key is required for the first-time admin setup.</div>
+  </div>
+
+  <!-- Common fields -->
+  <div class="mb-3">
+    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+    <input id="name" type="text" class="form-control" placeholder="Ravi Kumar">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Email <span class="text-danger">*</span></label>
+    <input id="email" type="email" class="form-control" placeholder="you@example.com">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Password <span class="text-danger">*</span></label>
+    <input id="password" type="password" class="form-control" placeholder="Min 6 characters">
+  </div>
+
+  <!-- PATIENT: personal + medical fields -->
+  <div id="patientFields" style="display:none;">
+    <div class="section-divider">Personal Information</div>
+    <div class="row g-3 mb-3">
+      <div class="col-6">
+        <label class="form-label">Date of Birth</label>
+        <input id="dob" type="date" class="form-control">
+      </div>
+      <div class="col-6">
+        <label class="form-label">Gender</label>
+        <select id="gender" class="form-select">
+          <option value="">Select</option>
+          <option>Male</option><option>Female</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Blood Group</label>
+      <select id="blood_group" class="form-select">
+        <option value="">Select</option>
+        <option>A+</option><option>A-</option>
+        <option>B+</option><option>B-</option>
+        <option>AB+</option><option>AB-</option>
+        <option>O+</option><option>O-</option>
+      </select>
+    </div>
+
+    <div class="section-divider">Medical History</div>
+    <div class="mb-3">
+      <label class="form-label">Known Allergies</label>
+      <input id="allergies" type="text" class="form-control" placeholder="e.g. Penicillin, Peanuts (or None)">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Existing Conditions</label>
+      <input id="conditions" type="text" class="form-control" placeholder="e.g. Hypertension, Asthma (or None)">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Current Medications</label>
+      <input id="medications" type="text" class="form-control" placeholder="e.g. Amlodipine, Metformin (or None)">
+    </div>
+  </div>
+
+  <button id="submitBtn" class="btn-submit mt-2" onclick="doSignup()">Create Account</button>
+
+  <div id="errorMsg"   class="alert alert-danger  mt-3 mb-0"></div>
+  <div id="successMsg" class="alert alert-success mt-3 mb-0"></div>
+
+  <p class="text-center mt-3 mb-0" style="font-size:.88rem;">
+    Already have an account? <a id="loginLink" href="#">Login</a>
+  </p>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const role   = params.get('role') || 'patient';
+
+document.getElementById('rolePill').className  = `role-pill pill-${role}`;
+document.getElementById('rolePill').innerText  = role === 'patient' ? 'Patient' : 'Admin';
+document.getElementById('submitBtn').className = `btn-submit btn-${role}`;
+document.getElementById('loginLink').href      = `/login?role=${role}`;
+
+if(role === 'patient') document.getElementById('patientFields').style.display   = 'block';
+if(role === 'admin')   document.getElementById('bootstrapSection').style.display = 'block';
+
+// Block if admin already exists
+if(role === 'admin'){
+  fetch('/admin/check').then(r=>r.json()).then(d=>{
+    if(d.admin_exists){
+      document.getElementById('submitBtn').disabled = true;
+      showErr('Admin account already exists. Please login instead.');
+    }
+  });
+}
+
+async function doSignup(){
+  const btn = document.getElementById('submitBtn');
+  hideMessages();
+
+  const name     = document.getElementById('name').value.trim();
+  const email    = document.getElementById('email').value.trim().toLowerCase();
+  const password = document.getElementById('password').value;
+
+  if(!name || !email || !password){ showErr('Name, email and password are required.'); return; }
+  if(password.length < 6){ showErr('Password must be at least 6 characters.'); return; }
+
+  let payload = { name, email, password };
+  let endpoint = '';
+
+  if(role === 'patient'){
+    endpoint = '/auth/signup/patient';
+    payload.dob         = document.getElementById('dob').value;
+    payload.gender      = document.getElementById('gender').value;
+    payload.blood_group = document.getElementById('blood_group').value;
+    payload.allergies   = document.getElementById('allergies').value.trim() || 'None';
+    payload.conditions  = document.getElementById('conditions').value.trim() || 'None';
+    payload.medications = document.getElementById('medications').value.trim() || 'None';
+    if(!payload.dob || !payload.gender || !payload.blood_group){
+      showErr('Date of birth, gender and blood group are required.'); return;
+    }
+  } else if(role === 'admin'){
+    endpoint = '/auth/signup/admin';
+    payload.bootstrap_key = document.getElementById('bootstrapKey').value;
+    if(!payload.bootstrap_key){ showErr('Bootstrap key is required.'); return; }
+  }
+
+  btn.disabled = true; btn.innerText = 'Creating…';
+
+  try {
+    const res  = await fetch(endpoint, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if(!res.ok){ showErr(data.error || 'Signup failed'); return; }
+
+    showSuccess(`Account created! Redirecting to login…`);
+    setTimeout(()=>{ window.location.href = `/login?role=${role}`; }, 1800);
+
+  } catch(e){
+    showErr('Could not reach server.');
+  } finally {
+    btn.disabled = false; btn.innerText = 'Create Account';
+  }
+}
+
+function showErr(msg){
+  const e = document.getElementById('errorMsg');
+  e.style.display = 'block'; e.innerText = msg;
+}
+function showSuccess(msg){
+  const e = document.getElementById('successMsg');
+  e.style.display = 'block'; e.innerText = msg;
+}
+function hideMessages(){
+  document.getElementById('errorMsg').style.display   = 'none';
+  document.getElementById('successMsg').style.display = 'none';
+}
+</script>
+</body>
+</html>

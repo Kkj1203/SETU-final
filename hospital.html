@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Hospital Staff</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; }
+    .topbar {
+      background:#fff; border-bottom:1px solid #e5e7eb;
+      padding:14px 32px; display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:32px;
+    }
+    .topbar h5 { margin:0; font-weight:700; color:#16a34a; }
+    .content { padding:0 32px 40px; max-width:1100px; margin:0 auto; }
+
+    .detail-row td { background:#f8f9fa; padding:14px 20px !important; }
+    .detail-row { display:none; }
+    .detail-row.open { display:table-row; }
+
+    .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; font-size:.9rem; margin-bottom:12px; }
+    .detail-grid .lbl { font-weight:600; color:#555; }
+
+    .situation-box {
+      background:#fff3cd; border-left:4px solid #dc3545;
+      border-radius:4px; padding:10px 14px; font-size:.93rem; margin-top:8px;
+    }
+    .situation-box .sit-label { font-weight:700; color:#dc3545; display:block; margin-bottom:4px; }
+    .btn-expand { font-size:.8rem; padding:2px 8px; }
+    #statusMsg { display:none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h5>🏥 SETU — Hospital Dashboard</h5>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="topInfo" style="font-size:.88rem;color:#555;"></span>
+    <button onclick="logout()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 16px;font-size:.88rem;cursor:pointer;">Logout</button>
+  </div>
+</div>
+
+<div class="content">
+  <h4 id="hospitalName" class="mb-4"></h4>
+
+  <h5>Incoming Pings</h5>
+  <table class="table table-bordered bg-white" id="incoming">
+    <thead class="table-light">
+      <tr><th>Req ID</th><th>Patient</th><th>Urgency</th><th>Details</th><th>Action</th></tr>
+    </thead>
+    <tbody id="incomingTbody"></tbody>
+  </table>
+
+  <div id="statusMsg" class="alert mt-3"></div>
+</div>
+
+<script>
+const API = '';
+let HOSP_ID = null;
+
+async function init(){
+  const me = await fetch('/auth/me').then(r=>r.json());
+  if(!me.authenticated || me.role !== 'hospital_staff'){
+    window.location.href='/'; return;
+  }
+  HOSP_ID = me.linked_id;
+  document.getElementById('topInfo').innerText = `${me.name} · ${HOSP_ID}`;
+
+  // Fetch hospital name
+  const hospitals = await fetch('/hospitals').then(r=>r.json());
+  const h = hospitals.find(x=>x.hosp_id===HOSP_ID);
+  document.getElementById('hospitalName').innerText = h ? `${h.name} (${h.hosp_id})` : HOSP_ID;
+
+  poll();
+}
+
+async function poll(){
+  if(!HOSP_ID){ setTimeout(poll,2000); return; }
+  try {
+    const rows = await fetch(`/pings/hospital/${HOSP_ID}`).then(r=>r.json());
+    renderPings(rows);
+  } catch(e){ console.error('Poll error:',e); }
+  finally { setTimeout(poll,2000); }
+}
+
+function renderPings(rows){
+  const tbody = document.getElementById('incomingTbody');
+  const openIds = new Set(
+    Array.from(tbody.querySelectorAll('.detail-row.open')).map(el=>el.dataset.reqId)
+  );
+  tbody.innerHTML='';
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="5" class="text-center text-muted p-4">No pending pings</td></tr>';
+    return;
+  }
+  rows.forEach(r=>{
+    const pname = r.patient_name||r.patient_id||'—';
+    const mainTr = document.createElement('tr');
+    mainTr.dataset.reqId=r.req_id;
+    mainTr.innerHTML=`
+      <td><small class="text-muted">${r.req_id.slice(0,8)}…</small></td>
+      <td><strong>${pname}</strong></td>
+      <td><span class="badge bg-danger">${r.urgency}</span></td>
+      <td><button class="btn btn-sm btn-outline-secondary btn-expand" onclick="toggleDetail('${r.req_id}')">▼ View Details</button></td>
+      <td>
+        <button class="btn btn-sm btn-success me-1" onclick="respond('${r.req_id}','accept')">Accept</button>
+        <button class="btn btn-sm btn-danger" onclick="respond('${r.req_id}','decline')">Decline</button>
+      </td>`;
+    tbody.appendChild(mainTr);
+
+    const situation = r.current_situation
+      ? `<div class="situation-box"><span class="sit-label">🚨 Current Situation at Site</span>${esc(r.current_situation)}</div>`
+      : `<div class="situation-box" style="border-color:#aaa;background:#f1f1f1;"><span class="sit-label" style="color:#888;">Current Situation</span><em class="text-muted">Not provided</em></div>`;
+
+    const detailTr = document.createElement('tr');
+    detailTr.className  = 'detail-row' + (openIds.has(r.req_id)?' open':'');
+    detailTr.dataset.reqId = r.req_id;
+    detailTr.innerHTML=`<td colspan="5">
+      <div class="detail-grid">
+        <div><span class="lbl">Date of Birth:</span> ${r.dob||'—'}</div>
+        <div><span class="lbl">Gender:</span> ${r.gender||'—'}</div>
+        <div><span class="lbl">Blood Group:</span> ${r.blood_group||'—'}</div>
+        <div><span class="lbl">Allergies:</span> ${r.allergies||'None'}</div>
+        <div><span class="lbl">Conditions:</span> ${r.conditions||'None'}</div>
+        <div><span class="lbl">Medications:</span> ${r.medications||'None'}</div>
+      </div>${situation}</td>`;
+    tbody.appendChild(detailTr);
+  });
+}
+
+function toggleDetail(reqId){
+  const row = document.querySelector(`.detail-row[data-req-id="${reqId}"]`);
+  const btn = document.querySelector(`tr[data-req-id="${reqId}"] .btn-expand`);
+  if(!row) return;
+  const open = row.classList.toggle('open');
+  if(btn) btn.innerText = open ? '▲ Hide Details' : '▼ View Details';
+}
+
+async function respond(req_id, response){
+  try {
+    const res  = await fetch(`/pings/${req_id}/respond`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({response})   // hosp_id comes from session server-side
+    }).then(r=>r.json());
+
+    const msg = document.getElementById('statusMsg');
+    if(res.status==='assigned'){
+      msg.className='alert alert-success'; msg.style.display='block';
+      msg.innerText=`✅ Accepted! Patient assigned here. ETA: ${res.eta_minutes} min.`;
+    } else if(res.status==='already_assigned'){
+      msg.className='alert alert-warning'; msg.style.display='block';
+      msg.innerText='⚠️ Another hospital already accepted this patient.';
+    } else {
+      msg.className='alert alert-secondary'; msg.style.display='block';
+      msg.innerText='↩️ Declined.';
+    }
+    setTimeout(()=>{ msg.style.display='none'; }, 4000);
+  } catch(e){ console.error(e); }
+}
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+async function logout(){ await fetch('/auth/logout',{method:'POST'}); window.location.href='/'; }
+
+init();
+</script>
+</body>
+</html>

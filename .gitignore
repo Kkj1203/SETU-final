@@ -1,0 +1,20 @@
+# Database (regenerates on first run)
+setu.db
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment (if anyone uses one)
+venv/
+env/
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

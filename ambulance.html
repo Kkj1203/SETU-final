@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — First Responder</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; }
+    .topbar {
+      background:#fff; border-bottom:1px solid #e5e7eb;
+      padding:14px 32px; display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:32px;
+    }
+    .topbar h5 { margin:0; font-weight:700; color:#d97706; }
+    .content { padding:0 32px 40px; max-width:1000px; margin:0 auto; }
+
+    #pingModal {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.45); z-index:999;
+      align-items:center; justify-content:center;
+    }
+    #pingModal.show { display:flex; }
+    #pingModalBox {
+      background:#fff; border-radius:12px; padding:28px 32px;
+      min-width:320px; box-shadow:0 8px 32px rgba(0,0,0,.18);
+    }
+    #pingModalBox h5 { margin-bottom:14px; }
+    #pingModalList { margin-bottom:18px; padding-left:20px; }
+    #pingModalList li { margin-bottom:6px; font-weight:500; }
+
+    .situation-label { color:#dc3545; font-weight:700; }
+    #situationBox { border:2px solid #dc3545; border-radius:8px; }
+    #situationBox:focus { border-color:#dc3545; box-shadow:0 0 0 .2rem rgba(220,53,69,.2); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h5>🚑 SETU — First Responder</h5>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="topInfo" style="font-size:.88rem;color:#555;"></span>
+    <button onclick="logout()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 16px;font-size:.88rem;cursor:pointer;">Logout</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Search -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Search Patient (ID / name / template)</label>
+    <div class="input-group">
+      <input id="q" class="form-control" placeholder="P001 or Ravi Kumar or TEMPLATE-001">
+      <button id="searchBtn" class="btn btn-warning text-white fw-semibold">Search</button>
+    </div>
+    <div id="searchResults" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- Patient Card -->
+  <div id="patientCard" style="display:none;" class="card mb-4 border-0 shadow-sm">
+    <div class="card-body">
+      <h5 id="pname" class="mb-3"></h5>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:.92rem;margin-bottom:16px;">
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">DOB</span><br><span id="pdob"></span></div>
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">Gender</span><br><span id="pgender"></span></div>
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">Blood Group</span><br><span id="pblood"></span></div>
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">Allergies</span><br><span id="pallergies"></span></div>
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">Conditions</span><br><span id="pconditions"></span></div>
+        <div><span style="color:#888;font-size:.78rem;text-transform:uppercase;font-weight:600;">Medications</span><br><span id="pmeds"></span></div>
+      </div>
+      <hr>
+      <div class="mb-3">
+        <label class="form-label situation-label">
+          🚨 Current Situation at Site
+          <small class="text-muted fw-normal">(describe injuries / symptoms right now)</small>
+        </label>
+        <textarea id="situationBox" class="form-control" rows="3"
+          placeholder="e.g. Broken left wrist, head injury with bleeding, shoulder abrasion. Patient is conscious but disoriented."></textarea>
+      </div>
+      <button id="pingBtn" class="btn btn-success fw-semibold">Ping Hospitals (N=3)</button>
+    </div>
+  </div>
+
+  <!-- Active Pings -->
+  <h5>Active Pings</h5>
+  <table class="table table-bordered bg-white mb-4">
+    <thead class="table-light"><tr><th>Req ID</th><th>Patient</th><th>Hospital</th><th>Status</th><th>ETA(min)</th></tr></thead>
+    <tbody id="pingsTbody"></tbody>
+  </table>
+
+  <!-- Current Assignment -->
+  <h5>Current Assignment</h5>
+  <div id="assignment" class="alert alert-success" style="display:none;"></div>
+
+  <!-- History -->
+  <h5>Assignments History</h5>
+  <table class="table table-sm table-striped bg-white">
+    <thead><tr><th>Patient</th><th>Hospital</th><th>Req ID</th><th>ETA</th></tr></thead>
+    <tbody id="historyTbody"></tbody>
+  </table>
+</div>
+
+<!-- Modal -->
+<div id="pingModal">
+  <div id="pingModalBox">
+    <h5>✅ Pings Sent!</h5>
+    <p class="text-muted mb-2">Waiting for response from:</p>
+    <ul id="pingModalList"></ul>
+    <button class="btn btn-primary btn-sm" onclick="closePingModal()">OK</button>
+  </div>
+</div>
+
+<script>
+const API = '';
+let AMB_ID = null;
+
+let currentBatch    = null;
+let resolvedBatches = new Set();
+let assignments     = [];
+let isPolling       = false;
+
+async function init(){
+  const me = await fetch('/auth/me').then(r=>r.json());
+  if(!me.authenticated || me.role !== 'first_responder'){
+    window.location.href='/'; return;
+  }
+  AMB_ID = me.linked_id;
+  document.getElementById('topInfo').innerText = `${me.name} · ${AMB_ID}`;
+  document.getElementById('searchBtn').addEventListener('click', searchPatient);
+  pollPings();
+}
+
+async function searchPatient(){
+  const q = document.getElementById('q').value.trim();
+  if(!q) return alert('Type a search term');
+  const rows = await fetch(`/patients/search?q=${encodeURIComponent(q)}`).then(r=>r.json());
+  const container = document.getElementById('searchResults');
+  container.innerHTML = '';
+  if(!rows.length){ container.innerHTML='<div class="text-muted">No results found</div>'; return; }
+  rows.forEach(r=>{
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-outline-warning m-1';
+    btn.innerText = `${r.name} (${r.patient_id})`;
+    btn.onclick   = ()=>loadPatient(r.patient_id);
+    container.appendChild(btn);
+  });
+}
+
+async function loadPatient(pid){
+  const p = await fetch(`/patients/${pid}`).then(r=>r.json());
+  document.getElementById('pname').innerText      = `${p.name} (${p.patient_id})`;
+  document.getElementById('pdob').innerText        = p.dob         || '—';
+  document.getElementById('pgender').innerText     = p.gender      || '—';
+  document.getElementById('pblood').innerText      = p.blood_group || '—';
+  document.getElementById('pallergies').innerText  = p.allergies   || 'None';
+  document.getElementById('pconditions').innerText = p.conditions  || 'None';
+  document.getElementById('pmeds').innerText       = p.medications || 'None';
+  document.getElementById('situationBox').value    = '';
+  document.getElementById('patientCard').style.display = 'block';
+  document.getElementById('pingBtn').onclick = ()=>sendPing(p.patient_id);
+}
+
+async function sendPing(pid){
+  const situation = document.getElementById('situationBox').value.trim();
+  if(!situation){
+    alert('Please describe the current situation before pinging hospitals.');
+    document.getElementById('situationBox').focus(); return;
+  }
+  const btn = document.getElementById('pingBtn');
+  btn.disabled=true; btn.innerText='Sending…';
+  try {
+    const body = await fetch('/ping',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({patient_id:pid, urgency:'critical', current_situation:situation})
+    }).then(r=>r.json());
+
+    currentBatch = body.batch_id;
+    document.getElementById('pingsTbody').innerHTML='';
+    document.getElementById('assignment').style.display='none';
+
+    const list = document.getElementById('pingModalList');
+    list.innerHTML='';
+    body.hospitals.forEach(name=>{ const li=document.createElement('li'); li.innerText=name; list.appendChild(li); });
+    document.getElementById('pingModal').classList.add('show');
+  } catch(e){ alert('Failed to ping. Is backend running?'); }
+  finally { btn.disabled=false; btn.innerText='Ping Hospitals (N=3)'; }
+}
+
+function closePingModal(){ document.getElementById('pingModal').classList.remove('show'); }
+
+async function pollPings(){
+  if(isPolling||!AMB_ID) return;
+  isPolling=true;
+  try {
+    const all = await fetch(`/amb/${AMB_ID}/pings`).then(r=>r.json());
+    if(!currentBatch) return;
+    const batchRows = all.filter(r=>r.batch_id===currentBatch);
+    const assigned  = batchRows.find(r=>r.status==='assigned');
+    if(assigned){
+      document.getElementById('pingsTbody').innerHTML='';
+      const box=document.getElementById('assignment');
+      box.style.display='block';
+      box.innerHTML=`<strong>✅ Assigned:</strong> ${assigned.patient_name} → <strong>${assigned.hospital_name}</strong> &nbsp;<span class="badge bg-success">ETA: ${assigned.eta_minutes} min</span>`;
+      if(!resolvedBatches.has(currentBatch)){
+        resolvedBatches.add(currentBatch);
+        assignments.unshift({req_id:assigned.req_id,patient:assigned.patient_name||assigned.patient_id,hospital:assigned.hospital_name,eta:assigned.eta_minutes});
+        renderHistory();
+      }
+      currentBatch=null;
+    } else {
+      const pending=batchRows.filter(r=>r.status==='pending');
+      const tbody=document.getElementById('pingsTbody');
+      const existing=Array.from(tbody.querySelectorAll('tr')).map(tr=>tr.dataset.reqId);
+      const incoming=pending.map(r=>r.req_id);
+      if(existing.length!==incoming.length||incoming.some((id,i)=>id!==existing[i])){
+        tbody.innerHTML='';
+        pending.forEach(r=>{
+          const tr=document.createElement('tr'); tr.dataset.reqId=r.req_id;
+          tr.innerHTML=`<td><small class="text-muted">${r.req_id.slice(0,8)}…</small></td><td>${r.patient_name||r.patient_id}</td><td>${r.hospital_name||r.hosp_id}</td><td><span class="badge bg-warning text-dark">pending</span></td><td>—</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+  } catch(e){ console.error('Poll error:',e); }
+  finally { isPolling=false; setTimeout(pollPings,1500); }
+}
+
+function renderHistory(){
+  const tbody=document.getElementById('historyTbody');
+  tbody.innerHTML='';
+  assignments.forEach(a=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${a.patient}</td><td>${a.hospital}</td><td><small class="text-muted">${a.req_id}</small></td><td>${a.eta} min</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function logout(){ await fetch('/auth/logout',{method:'POST'}); window.location.href='/'; }
+
+init();
+</script>
+</body>
+</html>

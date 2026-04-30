@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SETU — Emergency Coordination System</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #f0f4f8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .hero { text-align: center; margin-bottom: 48px; }
+    .hero h1 { font-size: 2.8rem; font-weight: 800; color: #1a202c; letter-spacing: -1px; }
+    .hero p  { font-size: 1.1rem; color: #555; margin-top: 8px; }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 280px);
+      gap: 24px;
+    }
+    @media(max-width:1200px){ .cards-grid{ grid-template-columns: repeat(2,280px); } }
+    @media(max-width:620px) { .cards-grid{ grid-template-columns: 1fr; } }
+
+    .role-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      transition: transform .18s, box-shadow .18s;
+    }
+    .role-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+
+    .role-icon {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 18px;
+    }
+    .role-card h4 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; color: #1a202c; }
+    .role-card p  { font-size: 0.88rem; color: #666; margin-bottom: 24px; flex: 1; }
+
+    .btn-login  { width: 100%; margin-bottom: 8px; }
+    .btn-signup { width: 100%; }
+
+    /* Per-role accent colours */
+    .card-patient   .role-icon { background:#e0f2fe; }
+    .card-responder .role-icon { background:#fef3c7; }
+    .card-hospital  .role-icon { background:#dcfce7; }
+    .card-admin     .role-icon { background:#ede9fe; }
+
+    .card-patient   .btn-login  { background:#0284c7; border:none; color:#fff; }
+    .card-patient   .btn-signup { border:2px solid #0284c7; color:#0284c7; background:transparent; }
+    .card-responder .btn-login  { background:#d97706; border:none; color:#fff; }
+    .card-responder .btn-signup { border:2px solid #d97706; color:#d97706; background:transparent; }
+    .card-hospital  .btn-login  { background:#16a34a; border:none; color:#fff; }
+    .card-hospital  .btn-signup { border:2px solid #16a34a; color:#16a34a; background:transparent; }
+    .card-admin     .btn-login  { background:#7c3aed; border:none; color:#fff; }
+    .card-admin     .btn-signup { border:2px solid #7c3aed; color:#7c3aed; background:transparent; }
+
+    button { border-radius: 8px; padding: 9px 0; font-size:.93rem; cursor:pointer; transition: opacity .15s; }
+    button:hover { opacity: .88; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🚑 SETU</h1>
+  <p>Emergency Ambulance &amp; Hospital Coordination System</p>
+</div>
+
+<div class="cards-grid">
+
+  <!-- Patient -->
+  <div class="role-card card-patient">
+    <div class="role-icon">🧑‍⚕️</div>
+    <h4>Patient</h4>
+    <p>Access your personal profile and full medical history.</p>
+    <button class="btn-login" onclick="go('/login?role=patient')">Login</button>
+    <button class="btn-signup" onclick="go('/signup?role=patient')">Sign Up</button>
+  </div>
+
+  <!-- First Responder -->
+  <div class="role-card card-responder">
+    <div class="role-icon">🚑</div>
+    <h4>First Responder</h4>
+    <p>Search patients, report site conditions, and ping hospitals.</p>
+    <button class="btn-login"  onclick="go('/login?role=first_responder')">Login</button>
+    <button class="btn-signup" onclick="showAdminOnly()">Sign Up</button>
+  </div>
+
+  <!-- Hospital Staff -->
+  <div class="role-card card-hospital">
+    <div class="role-icon">🏥</div>
+    <h4>Hospital Staff</h4>
+    <p>Review incoming patient pings and manage case assignments.</p>
+    <button class="btn-login"  onclick="go('/login?role=hospital_staff')">Login</button>
+    <button class="btn-signup" onclick="showAdminOnly()">Sign Up</button>
+  </div>
+
+  <!-- Admin -->
+  <div class="role-card card-admin">
+    <div class="role-icon">🛡️</div>
+    <h4>Admin</h4>
+    <p>Manage users, create staff accounts, and oversee the system.</p>
+    <button class="btn-login"  onclick="go('/login?role=admin')">Login</button>
+    <button class="btn-signup" id="adminSignupBtn" onclick="go('/signup?role=admin')">Sign Up</button>
+  </div>
+
+</div>
+
+<!-- Admin-only toast -->
+<div id="toast" style="
+  display:none; position:fixed; bottom:32px; left:50%; transform:translateX(-50%);
+  background:#1a202c; color:#fff; padding:14px 28px; border-radius:10px;
+  font-size:.95rem; z-index:999; box-shadow:0 4px 20px rgba(0,0,0,.2);">
+  ⚠️ Sign-up for this role is managed by the Admin only.
+</div>
+
+<script>
+function go(path){ window.location.href = path; }
+
+function showAdminOnly(){
+  const t = document.getElementById('toast');
+  t.style.display = 'block';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>{ t.style.display='none'; }, 3500);
+}
+
+// Check if admin already exists — if so, hide admin signup button
+async function checkAdmin(){
+  try {
+    const res  = await fetch('/admin/check');
+    const data = await res.json();
+    if(data.admin_exists){
+      const btn = document.getElementById('adminSignupBtn');
+      btn.style.display = 'none';
+    }
+  } catch(e){ /* backend not reachable yet */ }
+}
+
+// If already logged in, redirect to dashboard
+async function checkSession(){
+  try {
+    const res  = await fetch('/auth/me');
+    const data = await res.json();
+    if(data.authenticated){
+      window.location.href = `/dashboard/${data.role}`;
+    }
+  } catch(e){}
+}
+
+checkSession();
+checkAdmin();
+</script>
+</body>
+</html>
