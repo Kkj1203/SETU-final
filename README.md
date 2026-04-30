@@ -6,8 +6,8 @@ A real-time coordination system between first responders, hospitals, patients, a
 
 **1. Clone the repo**
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-cd YOUR_REPO_NAME
+git clone https://github.com/Kkj1203/SETU-final.git
+cd SETU-final
 ```
 
 **2. Install dependencies**
