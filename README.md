@@ -29,7 +29,7 @@ http://127.0.0.1:5000
 
 1. Go to `http://127.0.0.1:5000`
 2. Click **Admin → Sign Up**
-3. Enter bootstrap key: `SETU-ADMIN-2024`
+3. Enter bootstrap key: `SETU2026`
 4. Create your admin account
 5. Log in as Admin and create Hospital Staff and First Responder accounts
 
